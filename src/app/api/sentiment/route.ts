@@ -30,18 +30,18 @@ Your job:
 
 Output strictly in this Markdown table format:
 
-### Overall Sentiment (Brand Name)
+## Overall Sentiment (Brand Name)
 | Overall Sentiment | Sentiment Score /10 |
 | --- | --- |
 | … | … |
 
-#### Positive Sentiment Points
+## Positive Sentiment Points
 - …
 
-#### Negative Sentiment Points
+## Negative Sentiment Points
 - …
 
-### Table of Sources
+## Table of Sources
 | Source | Category | Number of Reviews / Rating Info | Customer Sentiment Summary |
 | --- | --- | --- | --- |
 | **[Source Name]([Exact Page URL])** | [Category] | [Number of Reviews / Ratings] | **Positive:** … <br> **Negative:** … |

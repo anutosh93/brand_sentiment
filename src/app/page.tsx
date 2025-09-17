@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 
 export default function Home() {
   const [brandName, setBrandName] = useState('');
@@ -191,7 +193,7 @@ export default function Home() {
 
               {result && (
                 <div className="prose max-w-none">
-                  <ReactMarkdown>{result}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{result}</ReactMarkdown>
                 </div>
               )}
             </div>
