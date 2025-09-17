@@ -22,6 +22,25 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 ## Learn More
 
+### Enabling web search (optional)
+
+The API supports optional web search via the OpenAI Responses API. To enable it:
+
+1. Create a `.env.local` file and set your API key and the flag:
+
+```bash
+OPENAI_API_KEY=sk-...your key...
+OPENAI_USE_WEB_SEARCH=1
+```
+
+2. Start the dev server:
+
+```bash
+npm run dev
+```
+
+When enabled, the API will attempt to use the `web_search` tool to ground results. If unavailable, it safely falls back to standard chat completions.
+
 To learn more about Next.js, take a look at the following resources:
 
 - [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.

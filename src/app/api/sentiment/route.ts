@@ -14,11 +14,11 @@ You are an AI assistant that, given a brand name and its website, finds and summ
 
 Your job:
 1. Search the web for reviews, rating sites, analytics reports, social media mentions, and news articles about the input brand.
-2. Retrieve at least the top 10–20 distinct, credible sources (Trustpilot, ConsumerAffairs, Comparably, Kimola, Reviews.io, etc.).
+2. Retrieve at least the top 100–200 distinct, credible sources (Trustpilot, ConsumerAffairs, Comparably, Kimola, Reviews.io, etc.).
 3. For each source:
    • Identify the Source name and URL.
    • Classify the Source Category: “Official Brand Site”, “Review Platform”, “Analytics / Research”, “Media / Newsletter”, “Social Media” etc.
-   • Extract the number of reviews or rating info (if available).
+   • Extract the number of reviews and rating info (if both areavailable).
    • Summarize customer sentiment divided into:
        - Positive: main points of praise.
        - Negative: main points of complaint.
@@ -44,8 +44,10 @@ Output strictly in this Markdown table format:
 ### Table of Sources
 | Source | Category | Number of Reviews / Rating Info | Customer Sentiment Summary |
 | --- | --- | --- | --- |
-| **[Source Name]** | [Category] | [Number of Reviews / Ratings] ([URL]) | **Positive:** … <br> **Negative:** … ([URL]) |
-| … more rows …
+| **[Source Name]([Exact Page URL])** | [Category] | [Number of Reviews / Ratings] | **Positive:** … <br> **Negative:** … |
+
+Linking requirement for Source column:
+- The hyperlink MUST point to the exact page URL where the data was extracted (e.g., specific review page), NOT the site's homepage or a top-level domain.
 
 Do not include anything else outside this format.
 If some information is not available, write “Not specified” but still keep the column.
@@ -53,15 +55,44 @@ If some information is not available, write “Not specified” but still keep t
 
     const userPrompt = `Brand name: ${brandName}\nBrand website: ${brandWebsite}\nFetch customer sentiment across the web in the specified format.`;
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o', // or 'gpt-4o-mini' if you prefer
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-    });
+    let markdown = '';
 
-    const markdown = completion.choices[0].message?.content ?? '';
+    // Try OpenAI Responses API with web_search tool when enabled
+    const useWebSearch = process.env.OPENAI_USE_WEB_SEARCH === '1';
+    try {
+      // @ts-ignore: responses API may not be typed in current SDK
+      if (useWebSearch && (openai as any).responses?.create) {
+        // @ts-ignore
+        const resp = await (openai as any).responses.create({
+          model: 'gpt-4o',
+          tools: [{ type: 'web_search' }],
+          temperature: 0.0,
+          input: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+        });
+        // Try common shapes for text output across SDK versions
+        markdown = (resp as any).output_text
+          ?? (resp as any).content?.[0]?.text
+          ?? (resp as any).choices?.[0]?.message?.content
+          ?? '';
+      }
+    } catch (e) {
+      console.error('responses.create with web_search failed; falling back', e);
+    }
+
+    if (!markdown) {
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.0
+      });
+      markdown = completion.choices[0].message?.content ?? '';
+    }
 
     return NextResponse.json({ markdown });
   } catch (err: any) {
