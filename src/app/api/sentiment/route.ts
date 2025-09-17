@@ -60,7 +60,9 @@ If some information is not available, write “Not specified” but still keep t
     // Try OpenAI Responses API with web_search tool when enabled
     const useWebSearch = process.env.OPENAI_USE_WEB_SEARCH === '1';
     try {
-      type ResponsesClient = { create: (args: unknown) => Promise<unknown> };
+      interface ResponsesClient {
+        create: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
+      }
       const maybeResponses: ResponsesClient | undefined =
         (openai as unknown as { responses?: ResponsesClient }).responses;
 
@@ -73,7 +75,7 @@ If some information is not available, write “Not specified” but still keep t
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
           ],
-        } as unknown);
+        });
 
         const getPath = (obj: unknown, path: string[]): unknown => {
           let cur: unknown = obj;

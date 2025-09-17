@@ -49,7 +49,7 @@ export default function Home() {
       await navigator.clipboard.writeText(result);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    } catch (_) {
+    } catch {
       // ignore copy errors
     }
   };
