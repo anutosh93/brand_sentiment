@@ -28,8 +28,9 @@ export default function Home() {
       } else {
         setResult('Error fetching sentiment.');
       }
-    } catch (err: any) {
-      setResult('Error: ' + err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setResult('Error: ' + message);
     } finally {
       setLoading(false);
     }

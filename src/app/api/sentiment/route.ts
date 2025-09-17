@@ -60,10 +60,12 @@ If some information is not available, write “Not specified” but still keep t
     // Try OpenAI Responses API with web_search tool when enabled
     const useWebSearch = process.env.OPENAI_USE_WEB_SEARCH === '1';
     try {
-      // @ts-ignore: responses API may not be typed in current SDK
-      if (useWebSearch && (openai as any).responses?.create) {
-        // @ts-ignore
-        const resp = await (openai as any).responses.create({
+      type ResponsesClient = { create: (args: unknown) => Promise<unknown> };
+      const maybeResponses: ResponsesClient | undefined =
+        (openai as unknown as { responses?: ResponsesClient }).responses;
+
+      if (useWebSearch && maybeResponses?.create) {
+        const resp = await maybeResponses.create({
           model: 'gpt-4o',
           tools: [{ type: 'web_search' }],
           temperature: 0.0,
@@ -71,12 +73,28 @@ If some information is not available, write “Not specified” but still keep t
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
           ],
-        });
-        // Try common shapes for text output across SDK versions
-        markdown = (resp as any).output_text
-          ?? (resp as any).content?.[0]?.text
-          ?? (resp as any).choices?.[0]?.message?.content
-          ?? '';
+        } as unknown);
+
+        const getPath = (obj: unknown, path: string[]): unknown => {
+          let cur: unknown = obj;
+          for (const key of path) {
+            if (typeof cur === 'object' && cur !== null) {
+              const rec = cur as Record<string, unknown>;
+              cur = key in rec ? rec[key] : undefined;
+            } else {
+              return undefined;
+            }
+          }
+          return cur;
+        };
+
+        const candidateStrings: Array<unknown> = [
+          getPath(resp, ['output_text']),
+          getPath(resp, ['content', '0', 'text']),
+          getPath(resp, ['choices', '0', 'message', 'content']),
+        ];
+        const found = candidateStrings.find((v) => typeof v === 'string');
+        markdown = (found as string | undefined) ?? '';
       }
     } catch (e) {
       console.error('responses.create with web_search failed; falling back', e);
@@ -95,8 +113,9 @@ If some information is not available, write “Not specified” but still keep t
     }
 
     return NextResponse.json({ markdown });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
     console.error(err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
