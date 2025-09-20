@@ -14,19 +14,24 @@ export class RedditScraper {
       headers: {
         'user-agent':
           'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        accept: 'application/json',
+        accept: 'application/json, text/plain, */*',
       },
       cache: 'no-store',
     });
     if (!res.ok) throw new Error(`Reddit fetch failed: ${res.status}`);
-    return res.json();
+    const body = await res.text();
+    try {
+      return JSON.parse(body);
+    } catch (e) {
+      throw new Error('Invalid JSON from Reddit: ' + String(body).slice(0, 120));
+    }
   }
 
   async searchReddit(brandName: string, limit: number = 50): Promise<RedditPost[]> {
     const encoded = encodeURIComponent(brandName);
     const endpoints = [
-      `https://www.reddit.com/search.json?q=${encoded}&type=link&sort=top&t=year&limit=100`,
-      `https://www.reddit.com/r/all/search.json?q=${encoded}&restrict_sr=on&sort=top&t=year&limit=100`,
+      `https://www.reddit.com/search.json?q=${encoded}&type=link&sort=top&t=year&limit=100&raw_json=1`,
+      `https://www.reddit.com/r/all/search.json?q=${encoded}&restrict_sr=on&sort=top&t=year&limit=100&raw_json=1`,
     ];
 
     const posts: RedditPost[] = [];
