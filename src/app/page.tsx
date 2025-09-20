@@ -4,10 +4,9 @@ import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { useRouter } from 'next/navigation';
+ 
 
 export default function Home() {
-  const router = useRouter();
   const [brandName, setBrandName] = useState('');
   const [brandWebsite, setBrandWebsite] = useState('');
   const [result, setResult] = useState('');
@@ -135,7 +134,7 @@ export default function Home() {
               {loading && (
                 <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--uber-blue-light)' }}>
                   <p className="uber-caption" style={{ color: 'var(--uber-blue)' }}>
-                    <strong>What's happening:</strong><br/>
+                    <strong>What&#39;s happening:</strong><br/>
                     1. Searching Reddit for brand mentions<br/>
                     2. Scraping posts and comments<br/>
                     3. Analyzing sentiment patterns<br/>
@@ -175,7 +174,7 @@ export default function Home() {
                     onClick={() => setExample('McDonald\'s', 'https://www.mcdonalds.com')} 
                     className="uber-chip"
                   >
-                    McDonald's
+                    McDonald&apos;s
                   </button>
                   <button 
                     type="button" 

@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       if (comments.length >= limit) break;
     }
     return NextResponse.json({ comments });
-  } catch (e) {
+  } catch {
     return NextResponse.json({ comments: [], error: 'failed' }, { status: 200 });
   }
 }

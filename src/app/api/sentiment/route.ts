@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
   const redditScraper = new RedditScraper();
   
   try {
-    const { brandName, brandWebsite } = await req.json();
+    const { brandName } = await req.json();
 
     console.log(`Starting Reddit analysis for brand: ${brandName}`);
 
@@ -46,8 +46,7 @@ async function analyzeSentimentWithOpenAI(brandName: string, posts: RedditPost[]
     subreddit: post.subreddit,
     upvotes: post.upvotes,
     comments: post.comments,
-    url: post.url,
-    topComments: (post.topComments || []).slice(0, 20).map(c => ({ author: c.author, score: c.score, body: c.body }))
+    url: post.url
   }));
 
   const systemPrompt = `

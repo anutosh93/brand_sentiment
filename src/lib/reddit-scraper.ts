@@ -22,7 +22,7 @@ export class RedditScraper {
     const body = await res.text();
     try {
       return JSON.parse(body);
-    } catch (e) {
+    } catch {
       throw new Error('Invalid JSON from Reddit: ' + String(body).slice(0, 120));
     }
   }

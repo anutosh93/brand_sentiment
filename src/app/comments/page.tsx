@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 type RedditComment = { author: string; score: number; body: string; timestamp: string };
 
-export default function CommentsPage() {
+function CommentsInner() {
   const params = useSearchParams();
   const url = params.get('u') || '';
   const [comments, setComments] = useState<RedditComment[]>([]);
@@ -17,7 +17,7 @@ export default function CommentsPage() {
       const postsRaw = sessionStorage.getItem('sentiment_posts');
       try {
         if (postsRaw) {
-          const posts = JSON.parse(postsRaw) as any[];
+          const posts = JSON.parse(postsRaw) as Array<{ url?: string; title?: string }>;
           const found = posts.find((p) => p.url === url);
           if (found) setTitle(found.title || 'Reddit Post');
         }
@@ -70,6 +70,14 @@ export default function CommentsPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function CommentsPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--uber-gray-50)' }}><div className="uber-card p-6">Loading comments…</div></main>}>
+      <CommentsInner />
+    </Suspense>
   );
 }
 
