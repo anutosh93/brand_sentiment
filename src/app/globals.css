@@ -209,6 +209,7 @@ body {
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  table-layout: fixed; /* keep columns consistent */
 }
 
 .prose th {
@@ -224,6 +225,9 @@ body {
   padding: 12px 16px;
   border-bottom: 1px solid var(--uber-gray-100);
   color: var(--uber-gray-700);
+  vertical-align: top; /* align multi-line cells to the top */
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .prose tr:hover {
@@ -240,3 +244,13 @@ body {
   color: var(--uber-blue-hover);
   text-decoration: underline;
 }
+
+/* Column widths for Reddit sources table (4 columns) */
+.prose thead th:nth-child(1),
+.prose tbody td:nth-child(1) { width: 34%; }
+.prose thead th:nth-child(2),
+.prose tbody td:nth-child(2) { width: 18%; }
+.prose thead th:nth-child(3),
+.prose tbody td:nth-child(3) { width: 18%; }
+.prose thead th:nth-child(4),
+.prose tbody td:nth-child(4) { width: 30%; }
