@@ -26,6 +26,10 @@ export default function Home() {
       const data = await res.json();
       if (data.markdown) {
         setResult(data.markdown);
+        try {
+          sessionStorage.setItem('last_brand_name', brandName);
+          if (brandWebsite) sessionStorage.setItem('last_brand_website', brandWebsite);
+        } catch {}
       } else if (data.error) {
         setResult(`Error: ${data.error}`);
       } else {
