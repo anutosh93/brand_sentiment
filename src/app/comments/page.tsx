@@ -13,16 +13,24 @@ export default function CommentsPage() {
   const [title, setTitle] = useState('');
 
   useEffect(() => {
-    const postsRaw = sessionStorage.getItem('sentiment_posts');
-    if (!postsRaw) return;
-    try {
-      const posts = JSON.parse(postsRaw) as any[];
-      const found = posts.find((p) => p.url === url);
-      if (found) {
-        setTitle(found.title || 'Reddit Post');
-        setComments(found.topComments || []);
+    async function load() {
+      const postsRaw = sessionStorage.getItem('sentiment_posts');
+      try {
+        if (postsRaw) {
+          const posts = JSON.parse(postsRaw) as any[];
+          const found = posts.find((p) => p.url === url);
+          if (found) setTitle(found.title || 'Reddit Post');
+        }
+      } catch {}
+      if (url) {
+        try {
+          const res = await fetch(`/api/comments?u=${encodeURIComponent(url)}&limit=20`);
+          const data = await res.json();
+          setComments(Array.isArray(data.comments) ? data.comments : []);
+        } catch {}
       }
-    } catch {}
+    }
+    load();
   }, [url]);
 
   return (
