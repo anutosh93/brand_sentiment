@@ -1,5 +1,178 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { RedditScraper, RedditPost } from '@/lib/reddit-scraper';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+export async function POST(req: NextRequest) {
+  const redditScraper = new RedditScraper();
+  
+  try {
+    const { brandName, brandWebsite } = await req.json();
+
+    console.log(`Starting Reddit analysis for brand: ${brandName}`);
+
+    // Step 1: Scrape Reddit for brand mentions
+    const posts = await redditScraper.searchReddit(brandName, 50);
+    console.log(`Found ${posts.length} Reddit posts`);
+
+    if (posts.length === 0) {
+      return NextResponse.json({ 
+        markdown: generateNoDataMarkdown(brandName)
+      });
+    }
+
+    // Step 2: Use OpenAI to analyze sentiment
+    const sentimentAnalysis = await analyzeSentimentWithOpenAI(brandName, posts);
+    
+    return NextResponse.json({ markdown: sentimentAnalysis });
+
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error('Reddit scraping error:', err);
+    return NextResponse.json({ error: message }, { status: 500 });
+  } finally {
+    // No cleanup needed; RedditScraper uses direct JSON endpoints
+  }
+}
+
+async function analyzeSentimentWithOpenAI(brandName: string, posts: RedditPost[]): Promise<string> {
+  // Prepare the data for OpenAI analysis
+  const postsData = posts.map(post => ({
+    title: post.title,
+    content: post.content,
+    subreddit: post.subreddit,
+    upvotes: post.upvotes,
+    comments: post.comments,
+    url: post.url
+  }));
+
+  const systemPrompt = `
+You are an AI assistant that analyzes customer sentiment from Reddit posts about brands.
+
+Your job:
+1. Analyze the provided Reddit posts about "${brandName}"
+2. For each post, determine sentiment (Positive/Negative/Neutral) and extract key sentiment points
+3. Aggregate all posts into an overall sentiment analysis
+4. Generate a comprehensive report in the specified markdown format
+
+Guidelines for sentiment analysis:
+- Consider context, tone, and specific mentions about the brand
+- Look for satisfaction/dissatisfaction indicators
+- Identify specific praise or criticism
+- Consider upvotes/comments as engagement indicators
+- Be objective and balanced in your assessment
+
+Output strictly in this Markdown format:
+
+## Overall Sentiment (${brandName} - Reddit Analysis)
+| Overall Sentiment | Sentiment Score /10 | Total Posts Analyzed |
+| --- | --- | --- |
+| [Mostly Positive/Mixed/Mostly Negative] | [X.X] | [Number] |
+
+## Positive Sentiment Points
+- [Key positive themes from the posts]
+- [Another positive theme]
+- [etc.]
+
+## Negative Sentiment Points  
+- [Key negative themes from the posts]
+- [Another negative theme]
+- [etc.]
+
+## Sentiment Distribution
+- **Positive Posts:** [Number] ([Percentage]%)
+- **Negative Posts:** [Number] ([Percentage]%)
+- **Neutral Posts:** [Number] ([Percentage]%)
+
+## Table of Reddit Sources
+| Source | Category | Engagement | Customer Sentiment Summary |
+| --- | --- | --- | --- |
+| **[Post Title](URL)** | Reddit - r/[subreddit] | [X upvotes, Y comments] | **[Positive/Negative/Mixed]:** [Brief analysis of the post sentiment with key points] |
+
+Make sure each post gets its own row with proper sentiment analysis.
+`;
+
+  const userPrompt = `Please analyze the sentiment of these ${posts.length} Reddit posts about "${brandName}":
+
+${JSON.stringify(postsData, null, 2)}
+
+Provide a comprehensive sentiment analysis in the specified markdown format.`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.1, // Low temperature for consistent analysis
+      max_tokens: 4000
+    });
+
+    return completion.choices[0].message?.content ?? 'Error analyzing sentiment';
+  } catch (error) {
+    console.error('OpenAI sentiment analysis error:', error);
+    return generateFallbackAnalysis(brandName, posts);
+  }
+}
+
+function generateFallbackAnalysis(brandName: string, posts: RedditPost[]): string {
+  // Fallback analysis if OpenAI fails
+  return `## Overall Sentiment (${brandName} - Reddit Analysis)
+| Overall Sentiment | Sentiment Score /10 | Total Posts Analyzed |
+| --- | --- | --- |
+| Analysis in Progress | N/A | ${posts.length} |
+
+## Positive Sentiment Points
+- Analysis temporarily unavailable due to API limitations
+
+## Negative Sentiment Points
+- Analysis temporarily unavailable due to API limitations
+
+## Sentiment Distribution
+- **Total Posts Found:** ${posts.length}
+- **Analysis Status:** Please try again - temporary processing issue
+
+## Table of Reddit Sources
+| Source | Category | Engagement | Customer Sentiment Summary |
+| --- | --- | --- | --- |
+${posts.map(post => {
+  const engagement = `${post.upvotes} upvotes, ${post.comments} comments`;
+  return `| **[${post.title}](${post.url})** | Reddit - r/${post.subreddit} | ${engagement} | **Summary:** Post captured; analysis pending |`;
+}).join('\n')}
+
+**Note:** Sentiment analysis temporarily unavailable. Raw data collected successfully from ${posts.length} Reddit posts.`;
+}
+
+function generateNoDataMarkdown(brandName: string): string {
+  return `## Overall Sentiment (${brandName} - Reddit Analysis)
+| Overall Sentiment | Sentiment Score /10 | Total Posts Analyzed |
+| --- | --- | --- |
+| No Data Available | N/A | 0 |
+
+## Positive Sentiment Points
+- No data available - brand may have limited Reddit presence
+
+## Negative Sentiment Points
+- No data available - brand may have limited Reddit presence
+
+## Table of Reddit Sources
+| Source | Category | Engagement | Customer Sentiment Summary |
+| --- | --- | --- | --- |
+| No Reddit posts found | Reddit Analysis | N/A | No significant Reddit discussions found for this brand. This could indicate limited Reddit presence or the brand name may need refinement. |
+
+**Note:** No relevant Reddit posts were found for "${brandName}". This could be due to:
+- Limited Reddit presence for this brand
+- Brand name variations not captured
+- Recent posts that haven't been indexed yet
+- Private or restricted subreddit discussions`;
+}
+
+/* import { NextRequest, NextResponse } from 'next/server';
+import OpenAI from 'openai';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -121,3 +294,5 @@ If some information is not available, write “Not specified” but still keep t
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+ */
+
