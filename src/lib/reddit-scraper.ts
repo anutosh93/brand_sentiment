@@ -1,6 +1,3 @@
-import puppeteer from 'puppeteer';
-import * as cheerio from 'cheerio';
-
 export interface RedditPost {
   title: string;
   url: string;
@@ -12,156 +9,71 @@ export interface RedditPost {
 }
 
 export class RedditScraper {
-  private browser: any = null;
-
-  private async sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  async initBrowser() {
-    if (!this.browser) {
-      this.browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-      });
-    }
-  }
-
-  async closeBrowser() {
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
-    }
+  private async fetchJSON(url: string): Promise<unknown> {
+    const res = await fetch(url, {
+      headers: {
+        'user-agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        accept: 'application/json',
+      },
+      cache: 'no-store',
+    });
+    if (!res.ok) throw new Error(`Reddit fetch failed: ${res.status}`);
+    return res.json();
   }
 
   async searchReddit(brandName: string, limit: number = 50): Promise<RedditPost[]> {
-    await this.initBrowser();
-    const page = await this.browser.newPage();
-    
-    try {
-      // Set user agent to avoid bot detection
-      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
-      
-      const posts: RedditPost[] = [];
-      
-      // Search in multiple ways to get comprehensive results
-      const searchQueries = [
-        `site:reddit.com "${brandName}"`,
-        `site:reddit.com ${brandName} review`,
-        `site:reddit.com ${brandName} experience`,
-        `site:reddit.com ${brandName} opinion`
-      ];
+    const encoded = encodeURIComponent(brandName);
+    const endpoints = [
+      `https://www.reddit.com/search.json?q=${encoded}&type=link&sort=top&t=year&limit=100`,
+      `https://www.reddit.com/r/all/search.json?q=${encoded}&restrict_sr=on&sort=top&t=year&limit=100`,
+    ];
 
-      for (const query of searchQueries) {
-        const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&num=20`;
-        
-        await page.goto(searchUrl, { waitUntil: 'networkidle2' });
-        await this.sleep(2000);
+    const posts: RedditPost[] = [];
+    for (const url of endpoints) {
+      try {
+        const json = (await this.fetchJSON(url)) as Record<string, unknown>;
+        const children = ((json.data as Record<string, unknown>)?.children ?? []) as Array<{ data: Record<string, unknown> }>;
+        for (const child of children) {
+          const d = child.data;
+          const title = String(d.title ?? '');
+          const selftext = String(d.selftext ?? '');
+          const subreddit = String(d.subreddit ?? 'unknown');
+          const ups = Number(d.ups ?? d.score ?? 0);
+          const numComments = Number(d.num_comments ?? 0);
+          const permalink = String(d.permalink ?? '');
+          const createdUtc = Number(d.created_utc ?? Date.now() / 1000);
 
-        const content = await page.content();
-        const $ = cheerio.load(content);
+          const fullText = `${title} ${selftext}`.toLowerCase();
+          if (!fullText.includes(brandName.toLowerCase())) continue;
 
-        // Extract Reddit URLs from Google search results
-        const redditUrls: string[] = [];
-        $('a[href*="reddit.com/r/"]').each((i, element) => {
-          const href = $(element).attr('href');
-          if (href && href.includes('reddit.com/r/') && !redditUrls.includes(href)) {
-            // Clean up Google redirect URLs
-            const cleanUrl = href.startsWith('/url?q=') 
-              ? decodeURIComponent(href.split('/url?q=')[1].split('&')[0])
-              : href;
-            if (cleanUrl.startsWith('http')) {
-              redditUrls.push(cleanUrl);
-            }
-          }
-        });
-
-        // Visit each Reddit post and extract data
-        for (const url of redditUrls.slice(0, 15)) { // Limit per query
-          try {
-            const postData = await this.scrapeRedditPost(page, url, brandName);
-            if (postData) {
-              posts.push(postData);
-            }
-            await this.sleep(1000); // Rate limiting
-          } catch (error) {
-            console.error(`Error scraping Reddit post ${url}:`, error);
-            continue;
-          }
+          posts.push({
+            title: title || 'No title available',
+            url: permalink ? `https://www.reddit.com${permalink}` : String(d.url ?? ''),
+            subreddit,
+            upvotes: Number.isFinite(ups) ? ups : 0,
+            comments: Number.isFinite(numComments) ? numComments : 0,
+            content: selftext || title,
+            timestamp: new Date(createdUtc * 1000).toISOString(),
+          });
         }
-
-        if (posts.length >= limit) break;
-        await this.sleep(2000); // Rate limiting between queries
+      } catch (e) {
+        console.error('Reddit JSON fetch error:', e);
+        continue;
       }
-
-      return posts.slice(0, limit);
-    } finally {
-      await page.close();
+      if (posts.length >= limit) break;
     }
-  }
 
-  private async scrapeRedditPost(page: any, url: string, brandName: string): Promise<RedditPost | null> {
-    try {
-      await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
-      await this.sleep(2000);
-
-      const content = await page.content();
-      const $ = cheerio.load(content);
-
-      // Extract post data
-      const title = $('[data-test-id="post-content"] h1').first().text().trim() || 
-                   $('h1').first().text().trim() ||
-                   $('[slot="title"]').text().trim();
-
-      const subredditMatch = url.match(/reddit\.com\/r\/([^\/]+)/);
-      const subreddit = subredditMatch ? subredditMatch[1] : 'unknown';
-
-      // Extract upvotes
-      let upvotes = 0;
-      const upvoteText = $('[id*="vote-arrows"] button').first().text() || 
-                        $('[data-test-id="upvotes"]').text() ||
-                        $('.score').text();
-      const upvoteMatch = upvoteText.match(/(\d+)/);
-      if (upvoteMatch) upvotes = parseInt(upvoteMatch[1]);
-
-      // Extract comment count
-      let comments = 0;
-      const commentText = $('a[data-test-id="comments-page-link"]').text() ||
-                         $('a[href*="comments"]').text();
-      const commentMatch = commentText.match(/(\d+)/);
-      if (commentMatch) comments = parseInt(commentMatch[1]);
-
-      // Extract post content
-      const postContent = $('[data-test-id="post-content"] div[data-test-id="richtext-content"]').text() ||
-                         $('.usertext-body').text() ||
-                         $('[data-adclicklocation="title"] + div').text() ||
-                         '';
-
-      // Extract timestamp
-      const timestamp = $('time').attr('datetime') || 
-                       $('[data-test-id="post-timestamp"]').text() ||
-                       new Date().toISOString();
-
-      // Only return if the post mentions the brand and has substantial content
-      const fullText = `${title} ${postContent}`.toLowerCase();
-      if (fullText.includes(brandName.toLowerCase()) && (title || postContent)) {
-        return {
-          title: title || 'No title available',
-          url,
-          subreddit,
-          upvotes,
-          comments,
-          content: postContent || title,
-          timestamp
-        };
+    // De-duplicate by URL and cap to limit
+    const seen = new Set<string>();
+    const unique: RedditPost[] = [];
+    for (const p of posts) {
+      if (p.url && !seen.has(p.url)) {
+        seen.add(p.url);
+        unique.push(p);
       }
-
-      return null;
-    } catch (error) {
-      console.error(`Error scraping Reddit post ${url}:`, error);
-      return null;
+      if (unique.length >= limit) break;
     }
+    return unique;
   }
-
-  // Remove the analyzeSentiment method - it will be handled by OpenAI in the API route
 }
