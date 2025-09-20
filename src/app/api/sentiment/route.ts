@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     // Step 2: Use OpenAI to analyze sentiment
     const sentimentAnalysis = await analyzeSentimentWithOpenAI(brandName, posts);
     
-    return NextResponse.json({ markdown: sentimentAnalysis });
+    return NextResponse.json({ markdown: sentimentAnalysis, posts });
 
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -46,7 +46,8 @@ async function analyzeSentimentWithOpenAI(brandName: string, posts: RedditPost[]
     subreddit: post.subreddit,
     upvotes: post.upvotes,
     comments: post.comments,
-    url: post.url
+    url: post.url,
+    topComments: (post.topComments || []).slice(0, 20).map(c => ({ author: c.author, score: c.score, body: c.body }))
   }));
 
   const systemPrompt = `
@@ -90,7 +91,7 @@ Output strictly in this Markdown format:
 ## Table of Reddit Sources
 | Source | Category | Engagement | Customer Sentiment Summary |
 | --- | --- | --- | --- |
-| **[Post Title](URL)** | Reddit - r/[subreddit] | [X upvotes, Y comments] | **[Positive/Negative/Mixed]:** [Brief analysis of the post sentiment with key points] |
+| **[Post Title](URL)** | Reddit - r/[subreddit] | [X upvotes, Y comments] | **[Positive/Negative/Mixed]:** [Brief analysis of the post sentiment with key points] <br> [View Comments](/comments?u=URL) |
 
 Make sure each post gets its own row with proper sentiment analysis.
 `;
@@ -141,7 +142,7 @@ function generateFallbackAnalysis(brandName: string, posts: RedditPost[]): strin
 | --- | --- | --- | --- |
 ${posts.map(post => {
   const engagement = `${post.upvotes} upvotes, ${post.comments} comments`;
-  return `| **[${post.title}](${post.url})** | Reddit - r/${post.subreddit} | ${engagement} | **Summary:** Post captured; analysis pending |`;
+  return `| **[${post.title}](${post.url})** | Reddit - r/${post.subreddit} | ${engagement} | **Summary:** Post captured; analysis pending <br> [View Comments](/comments?u=${encodeURIComponent(post.url)}) |`;
 }).join('\n')}
 
 **Note:** Sentiment analysis temporarily unavailable. Raw data collected successfully from ${posts.length} Reddit posts.`;

@@ -269,7 +269,10 @@ export default function Home() {
       });
       const data = await res.json();
       if (data.markdown) {
-        try { sessionStorage.setItem('sentiment_markdown', data.markdown); } catch {}
+        try {
+          sessionStorage.setItem('sentiment_markdown', data.markdown);
+          if (data.posts) sessionStorage.setItem('sentiment_posts', JSON.stringify(data.posts));
+        } catch {}
         router.push('/results');
       } else {
         setResult('Error fetching sentiment.');

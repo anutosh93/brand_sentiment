@@ -9,10 +9,13 @@ import Link from 'next/link';
 export default function ResultsPage() {
   const [markdown, setMarkdown] = useState('');
   const [copied, setCopied] = useState(false);
+  const [postsJson, setPostsJson] = useState('');
 
   useEffect(() => {
     const md = sessionStorage.getItem('sentiment_markdown') || '';
+    const posts = sessionStorage.getItem('sentiment_posts') || '';
     setMarkdown(md);
+    setPostsJson(posts);
   }, []);
 
   const handleCopy = async () => {
