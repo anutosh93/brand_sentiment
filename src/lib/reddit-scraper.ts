@@ -35,6 +35,9 @@ export class RedditScraper {
     ];
 
     const posts: RedditPost[] = [];
+    const nowMs = Date.now();
+    const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
+    const cutoffMs = nowMs - ninetyDaysMs; // last ~3 months
     for (const url of endpoints) {
       try {
         const json = (await this.fetchJSON(url)) as Record<string, unknown>;
@@ -48,9 +51,12 @@ export class RedditScraper {
           const numComments = Number(d.num_comments ?? 0);
           const permalink = String(d.permalink ?? '');
           const createdUtc = Number(d.created_utc ?? Date.now() / 1000);
+          const createdMs = createdUtc * 1000;
 
           const fullText = `${title} ${selftext}`.toLowerCase();
           if (!fullText.includes(brandName.toLowerCase())) continue;
+          // Only include posts from last 3 months
+          if (createdMs < cutoffMs) continue;
 
           posts.push({
             title: title || 'No title available',
@@ -59,7 +65,7 @@ export class RedditScraper {
             upvotes: Number.isFinite(ups) ? ups : 0,
             comments: Number.isFinite(numComments) ? numComments : 0,
             content: selftext || title,
-            timestamp: new Date(createdUtc * 1000).toISOString(),
+            timestamp: new Date(createdMs).toISOString(),
           });
         }
       } catch (e) {
@@ -77,8 +83,9 @@ export class RedditScraper {
         seen.add(p.url);
         unique.push(p);
       }
-      if (unique.length >= limit) break;
     }
-    return unique;
+    // Sort by engagement (upvotes + comments) descending and take top N
+    unique.sort((a, b) => (b.upvotes + b.comments) - (a.upvotes + a.comments));
+    return unique.slice(0, limit);
   }
 }
