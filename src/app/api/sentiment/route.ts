@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 import OpenAI from 'openai';
 import { RedditScraper, RedditPost } from '@/lib/reddit-scraper';
 
@@ -11,11 +16,15 @@ export async function POST(req: NextRequest) {
   
   try {
     const { brandName } = await req.json();
+    const normalizedBrand = String(brandName ?? '').trim();
+    if (!normalizedBrand) {
+      return NextResponse.json({ markdown: generateNoDataMarkdown('Unknown'), posts: [] });
+    }
 
-    console.log(`Starting Reddit analysis for brand: ${brandName}`);
+    console.log(`Starting Reddit analysis for brand: ${normalizedBrand}`);
 
     // Step 1: Scrape Reddit for brand mentions
-    const posts = await redditScraper.searchReddit(brandName, 50);
+    const posts = await redditScraper.searchReddit(normalizedBrand, 50);
     console.log(`Found ${posts.length} Reddit posts`);
 
     if (posts.length === 0) {
@@ -25,7 +34,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Step 2: Use OpenAI to analyze sentiment
-    const sentimentAnalysis = await analyzeSentimentWithOpenAI(brandName, posts);
+    const sentimentAnalysis = await analyzeSentimentWithOpenAI(normalizedBrand, posts);
     
     return NextResponse.json({ markdown: sentimentAnalysis, posts });
 
