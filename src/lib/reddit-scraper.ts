@@ -9,56 +9,26 @@ export interface RedditPost {
 }
 
 export class RedditScraper {
-  private async sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  private async fetchJSON(url: string, retries: number = 3, delayMs: number = 800): Promise<unknown> {
-    let attempt = 0;
-    let lastErr: unknown;
-    while (attempt < retries) {
-      try {
-        const res = await fetch(url, {
-          headers: {
-            'user-agent':
-              'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            accept: 'application/json, text/plain, */*',
-          },
-          cache: 'no-store',
-        });
-        if (!res.ok) {
-          if (res.status === 429 && attempt < retries - 1) {
-            await this.sleep(delayMs);
-            delayMs *= 2;
-            attempt++;
-            continue;
-          }
-          throw new Error(`Reddit fetch failed: ${res.status}`);
-        }
-        const body = await res.text();
-        try {
-          return JSON.parse(body);
-        } catch {
-          throw new Error('Invalid JSON from Reddit: ' + String(body).slice(0, 120));
-        }
-      } catch (e) {
-        lastErr = e;
-        if (attempt < retries - 1) {
-          await this.sleep(delayMs);
-          delayMs *= 2;
-          attempt++;
-          continue;
-        }
-        break;
-      }
+  private async fetchJSON(url: string): Promise<unknown> {
+    const res = await fetch(url, {
+      headers: {
+        'user-agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        accept: 'application/json, text/plain, */*',
+      },
+      cache: 'no-store',
+    });
+    if (!res.ok) throw new Error(`Reddit fetch failed: ${res.status}`);
+    const body = await res.text();
+    try {
+      return JSON.parse(body);
+    } catch {
+      throw new Error('Invalid JSON from Reddit: ' + String(body).slice(0, 120));
     }
-    throw lastErr instanceof Error ? lastErr : new Error('Unknown reddit fetch error');
   }
 
   async searchReddit(brandName: string, limit: number = 50): Promise<RedditPost[]> {
-    const query = String(brandName ?? '').trim();
-    if (!query) return [];
-    const encoded = encodeURIComponent(query);
+    const encoded = encodeURIComponent(brandName);
     const endpoints = [
       `https://www.reddit.com/search.json?q=${encoded}&type=link&sort=top&t=year&limit=100&raw_json=1`,
       `https://www.reddit.com/r/all/search.json?q=${encoded}&restrict_sr=on&sort=top&t=year&limit=100&raw_json=1`,
@@ -80,7 +50,7 @@ export class RedditScraper {
           const createdUtc = Number(d.created_utc ?? Date.now() / 1000);
 
           const fullText = `${title} ${selftext}`.toLowerCase();
-          if (!fullText.includes(query.toLowerCase())) continue;
+          if (!fullText.includes(brandName.toLowerCase())) continue;
 
           posts.push({
             title: title || 'No title available',
